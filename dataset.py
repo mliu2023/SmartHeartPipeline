@@ -3,19 +3,6 @@ import numpy as np
 import scipy.io as scio
 from torch.utils.data import Dataset
 
-def get_labels_from_header(header_file, classes):
-    with open(header_file, 'r') as file:
-        lines = file.readlines()
-        labels = torch.zeros(len(classes))
-        line15 = lines[15] # Example line: #Dx: 164865005,164951009,39732003,426783006
-        arr = line15.strip().split(' ')
-        diagnoses_arr = arr[1].split(',')
-        for diagnosis in diagnoses_arr:
-            if diagnosis in classes:
-                class_index = classes.index(diagnosis)
-                labels[class_index] = 1
-        return labels
-
 def get_frequency_from_header(header_file):
     with open(header_file, 'r') as file:
         first_line = file.readline()
@@ -48,10 +35,10 @@ def get_ecg_features(filename):
     pass
 
 class ECGDataset(Dataset):
-    def __init__(self, filenames, classes, transforms=None):
+    def __init__(self, filenames, labels, transforms=None):
         super(ECGDataset, self).__init__()
         self.filenames = filenames
-        self.classes = classes
+        self.labels = labels
         self.transforms = transforms # transforms is a sequence of transformations that should be applied to the signal data
     def __len__(self):
         return len(self.filenames)
@@ -73,7 +60,4 @@ class ECGDataset(Dataset):
         # concatenating the additional features
         additional_features = torch.concatenate((demographics, ecg_features), dim=1)
 
-        # retrieving labels
-        labels = get_labels_from_header(headname, self.classes)
-
-        return ((x_transformed, additional_features), labels)
+        return ((x_transformed, additional_features), self.labels)

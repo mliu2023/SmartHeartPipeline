@@ -1,89 +1,71 @@
 #!/usr/bin/env python
 
-import numpy as np, os, sys, joblib
-from scipy.io import loadmat
-from sklearn.impute import SimpleImputer
-from sklearn.ensemble import RandomForestClassifier
+import torch
+from torch.utils.data import DataLoader
+import numpy as np
+import sklearn
+import os
 from get_12ECG_features import get_12ECG_features
+from dataset import ECGDataset
+from transform_utils import *
 
 def train_12ECG_classifier(input_directory, output_directory):
-    # Load data.
-    print('Loading data...')
 
-    header_files = []
-    for f in os.listdir(input_directory):
-        g = os.path.join(input_directory, f)
-        if not f.lower().startswith('.') and f.lower().endswith('hea') and os.path.isfile(g):
-            header_files.append(g)
+    # initializing class labels
+    classes = [270492004, 164889003, 164890007, 426627000, 713427006, 713426002, 445118002, 39732003, 164909002, 251146004, 698252002, 10370003, 284470004, 427172004, 164947007, 111975006, 164917005, 47665007, 59118001, 427393009, 426177001, 426783006, 427084000, 63593006, 164934002, 59931005, 17338001]
+    for i in range(len(classes)):
+        classes[i] = str(classes[i])
 
-    classes = get_classes(input_directory, header_files)
-    num_classes = len(classes)
-    num_files = len(header_files)
-    recordings = list()
-    headers = list()
+    # retrieving filenames and labels from the data folder
+    filenames = [] # list of filenames
+    labels = [] # list of one-hot encoded tensors, each of length 27
+    for file in os.listdir(input_directory):
+        filepath = os.path.join(input_directory, file)
+        if not file.lower().startswith('.') and file.lower().endswith('mat') and os.path.isfile(filepath):
+            filenames.append(filepath)
+        if not file.lower().startswith('.') and file.lower().endswith('hea') and os.path.isfile(filepath):
+            labels.append(get_labels_from_header(file))
 
-    for i in range(num_files):
-        recording, header = load_challenge_data(header_files[i])
-        recordings.append(recording)
-        headers.append(header)
+    # composing preprocessing methods
+    train_transforms = Compose([resample, normalize, notch_filter])
+    val_transforms = Compose([resample, normalize, notch_filter])
 
-    # Train model.
-    print('Training model...')
+    # train model
+    stratified_k_fold = sklearn.model_selection.StratifiedKFold(n_splits=10)
+    for i, (train_indices, val_indices) in enumerate(stratified_k_fold.split(filenames, labels)):
+        # initializing the datasets
+        train_set = ECGDataset(filenames=filenames[train_indices], labels=labels[train_indices], transforms=train_transforms)
+        val_set = ECGDataset(filenames=filenames[val_indices], labels=labels[val_indices], transforms=val_transforms)
 
-    features = list()
-    labels = list()
+        # creating the data loaders (generators)
+        train_loader = DataLoader(dataset=train_set, batch_size=32, shuffle=True)
+        val_loader = DataLoader(dataset=val_set, batch_size=32, shuffle=False)
 
-    for i in range(num_files):
-        recording = recordings[i]
-        header = headers[i]
+        # define the model
+        model = CoolResNet18ThatWeFoundOnTheInternet()
 
-        tmp = get_12ECG_features(recording, header)
-        features.append(tmp)
+        # define training parameters and functions
+        warmup_epochs = 10
+        epochs = 100
+        loss = torch.nn.BCELoss()
+        optimizer = torch.optim.Adam(model.parameters, lr=1e-3, weight_decay=1e-5)
+        lr_scheduler = Warmup_LR_Scheduler(optimizer)
 
-        for l in header:
-            if l.startswith('#Dx:'):
-                labels_act = np.zeros(num_classes)
-                arrs = l.strip().split(' ')
-                for arr in arrs[1].split(','):
-                    class_index = classes.index(arr.rstrip()) # Only use first positive index
-                    labels_act[class_index] = 1
-        labels.append(labels_act)
+        for i in range(epochs):
+            print(f'Epoch {i+1}/{epochs}' + '\n')
+            train(model, train_loader, loss, optimizer, lr_scheduler=None)
+            val(model, val_loader)
 
-    features = np.array(features)
-    labels = np.array(labels)
 
-    # Replace NaN values with mean values
-    imputer=SimpleImputer().fit(features)
-    features=imputer.transform(features)
-
-    # Train the classifier
-    model = RandomForestClassifier().fit(features,labels)
-
-    # Save model.
-    print('Saving model...')
-
-    final_model={'model':model, 'imputer':imputer,'classes':classes}
-
-    filename = os.path.join(output_directory, 'finalized_model.sav')
-    joblib.dump(final_model, filename, protocol=0)
-
-# Load challenge data.
-def load_challenge_data(header_file):
-    with open(header_file, 'r') as f:
-        header = f.readlines()
-    mat_file = header_file.replace('.hea', '.mat')
-    x = loadmat(mat_file)
-    recording = np.asarray(x['val'], dtype=np.float64)
-    return recording, header
-
-# Find unique classes.
-def get_classes(input_directory, filenames):
-    classes = set()
-    for filename in filenames:
-        with open(filename, 'r') as f:
-            for l in f:
-                if l.startswith('#Dx'):
-                    tmp = l.split(': ')[1].split(',')
-                    for c in tmp:
-                        classes.add(c.strip())
-    return sorted(classes)
+def get_labels_from_header(header_file, classes):
+    with open(header_file, 'r') as file:
+        lines = file.readlines()
+        labels = torch.zeros(len(classes))
+        line15 = lines[15] # Example line: #Dx: 164865005,164951009,39732003,426783006
+        arr = line15.strip().split(' ')
+        diagnoses_arr = arr[1].split(',')
+        for diagnosis in diagnoses_arr:
+            if diagnosis in classes:
+                class_index = classes.index(diagnosis)
+                labels[class_index] = 1
+        return labels
