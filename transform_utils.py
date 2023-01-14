@@ -21,6 +21,9 @@ def notch_filter(ecg_signal, original_freq):
 def fir():
     pass
 
-def normalize():
-    pass
+def normalize(ecg_signal, original_freq):
+    min = np.amin(ecg_signal, axis=1)
+    max = np.amax(ecg_signal, axis=1)
+    ecg_signal = (ecg_signal-min)/(max-min)
+    return ecg_signal
 
