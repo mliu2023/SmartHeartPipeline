@@ -6,10 +6,11 @@ import numpy as np
 import sklearn
 import os
 import tqdm
+import importlib
 from dataset import ECGDataset
 from transform_utils import *
 
-def train_12ECG_classifier(input_directory, output_directory):
+def train_12ECG_classifier(input_directory, output_directory, config_file):
 
     # initializing class labels
     classes = [270492004, 164889003, 164890007, 426627000, 713427006, 713426002, 445118002, 39732003, 164909002, 
@@ -31,7 +32,7 @@ def train_12ECG_classifier(input_directory, output_directory):
     labels = np.array(labels)
 
     # composing preprocessing methods
-    train_transforms = Compose([Resample, Normalize, Notch_filter])
+    train_transforms = Compose([Resample, Normalize, Notch_filter, RandomCropping, ZeroPadding])
     val_transforms = Compose([Resample, Normalize, Notch_filter])
 
     # train model
@@ -45,20 +46,13 @@ def train_12ECG_classifier(input_directory, output_directory):
         train_loader = DataLoader(dataset=train_set, batch_size=32, shuffle=True)
         val_loader = DataLoader(dataset=val_set, batch_size=32, shuffle=False)
 
-        # define the model
-        model = CoolResNet18ThatWeFoundOnTheInternet()
-
-        # define training parameters, loss, optimizer, and learning rate scheduler
-        warmup_epochs = 10
-        total_epochs = 100
-        lr = 1e-3
-        loss = torch.nn.BCELoss()
-        optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-5)
-        cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, total_epochs-warmup_epochs)
-        lr_scheduler = Warmup_LR(optimizer=optimizer,
-                                warmup_iteration=warmup_epochs,
-                                target_lr=lr,
-                                after_scheduler=cosine_scheduler)
+        # define model, training parameters, loss, optimizer, and learning rate scheduler
+        config = __import__(config_file)
+        model = config.model
+        total_epochs = config.total_epochs
+        loss = config.loss
+        optimizer = config.optimizer
+        lr_scheduler = config.lr_scheduler
 
         # training + validation loop
         print(f'Training on fold {i+1}')
@@ -137,26 +131,3 @@ def get_labels_from_header(header_file, classes):
                 class_index = classes.index(diagnosis)
                 labels[class_index] = 1
         return labels
-
-# warmup learning rate scheduler
-class Warmup_LR(object):
-    def __init__(self, optimizer, warmup_iteration, target_lr, after_scheduler=None):
-        self.optimizer = optimizer
-        self.warmup_iteration = warmup_iteration
-        self.target_lr = target_lr
-        self.after_scheduler = after_scheduler
-        self.step(1)
-
-    def warmup_learning_rate(self, current_iteration):
-        warmup_lr = self.target_lr*float(current_iteration)/float(self.warmup_iteration)
-        for param_group in self.optimizer.param_groups:
-            param_group['lr'] = warmup_lr
-
-    def step(self, current_iteration):
-        if current_iteration <= self.warmup_iteration:
-            self.warmup_learning_rate(current_iteration)
-        else:
-            self.after_scheduler.step(current_iteration-self.warmup_iteration)
-    
-    def load_state_dict(self, state_dict):
-        self.after_scheduler.load_state_dict(state_dict)
