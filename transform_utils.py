@@ -57,3 +57,12 @@ class Normalize(object):
             raise NameError(f'Normalization type {self.type} is not included.')
         return ecg_signal
 
+class RandomCropping(object):
+    def __init__(self, crop_size):
+        self.crop_size = crop_size
+    def __call__(self, ecg_signal):
+        if(self.crop_size < len(ecg_signal[0])):
+            start = np.random.randint(0, len(ecg_signal[0])-self.crop_size)
+            ecg_signal = ecg_signal[:][start:start+self.crop_size]
+        else:
+            return ecg_signal

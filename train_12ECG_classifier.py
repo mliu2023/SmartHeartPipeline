@@ -70,13 +70,14 @@ def train_12ECG_classifier(input_directory, output_directory):
 # performs one training iteration
 def train(model, train_loader, loss, optimizer, lr_scheduler=None):
     with tqdm(train_loader, unit='batch') as minibatch:
-        for x,y in minibatch:
+        for (x, demographics), y in minibatch:
             # .cuda() loads the data onto the GPU
             # this code will not run without a compatible NVIDIA GPU
             x = x.cuda()
+            demographics = demographics.cuda()
             y = y.cuda()
 
-            y_pred = model(x)
+            y_pred = model(x, demographics)
             loss = loss(y_pred, y)
             optimizer.zero_grad()
             loss.backward()
@@ -89,13 +90,14 @@ def train(model, train_loader, loss, optimizer, lr_scheduler=None):
 # performs one validation iteration and outputs the challenge score
 def val(model, val_loader, classes, filenames, output_directory):
     with tqdm(val_loader, unit='batch') as minibatch:
-        for x,y in minibatch:
+        for (x, demographics), y in minibatch:
             # .cuda() loads the data onto the GPU
             # this code will not run without a compatible NVIDIA GPU
             x = x.cuda()
+            demographics = demographics.cuda()
             y = y.cuda()
 
-            y_pred = model(x)
+            y_pred = model(x, demographics)
 
             # evaluating the challenge score
             y_pred = torch.sigmoid(y_pred).squeeze() # sigmoid activation for multilabel classification
