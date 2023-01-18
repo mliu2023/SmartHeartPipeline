@@ -3,7 +3,7 @@
 import torch
 from torch.utils.data import DataLoader
 import numpy as np
-import sklearn
+import sklearn.model_selection
 import os
 import tqdm
 import importlib
@@ -27,7 +27,7 @@ def train_12ECG_classifier(input_directory, output_directory, config_file):
         if not file.lower().startswith('.') and file.lower().endswith('mat') and os.path.isfile(filepath):
             filenames.append(filepath)
         if not file.lower().startswith('.') and file.lower().endswith('hea') and os.path.isfile(filepath):
-            labels.append(get_labels_from_header(file))
+            labels.append(get_labels_from_header(filepath, classes))
     filenames = np.array(filenames)
     labels = np.array(labels)
 
@@ -36,8 +36,8 @@ def train_12ECG_classifier(input_directory, output_directory, config_file):
     val_transforms = Compose([Resample, Normalize, Notch_filter])
 
     # train model
-    stratified_k_fold = sklearn.model_selection.StratifiedKFold(n_splits=10)
-    for i, (train_indices, val_indices) in enumerate(stratified_k_fold.split(filenames, labels)):
+    k_fold = sklearn.model_selection.KFold(n_splits=10)
+    for i, (train_indices, val_indices) in enumerate(k_fold.split(filenames, labels)):
         # initializing the datasets
         train_set = ECGDataset(filenames=filenames[train_indices], labels=labels[train_indices], transforms=train_transforms)
         val_set = ECGDataset(filenames=filenames[val_indices], labels=labels[val_indices], transforms=val_transforms)
@@ -122,7 +122,7 @@ def save_predictions(output_directory,filenames,scores,labels,classes):
 def get_labels_from_header(header_file, classes):
     with open(header_file, 'r') as file:
         lines = file.readlines()
-        labels = torch.zeros(len(classes))
+        labels = np.zeros(len(classes))
         line15 = lines[15] # Example line: #Dx: 164865005,164951009,39732003,426783006
         arr = line15.strip().split(' ')
         diagnoses_arr = arr[1].split(',')

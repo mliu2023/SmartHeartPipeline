@@ -39,19 +39,19 @@ class FiniteImpulseResponse():
     pass
 
 class Normalize(object):
-    def __init__(self, type="min-max"):
+    def __init__(self, type='min-max'):
         self.type = type
 
     def __call__(self, ecg_signal):
-        if self.type == "min-max":
+        if self.type == 'min-max':
             max = np.amax(ecg_signal, axis=1)
             min = np.amin(ecg_signal, axis=1)
             ecg_signal = (ecg_signal-min)/(max-min)
-        elif self.type == "mean-std":
+        elif self.type == 'mean-std':
             mean = np.mean(ecg_signal, axis=1)
             std = np.std(ecg_signal, axis=1)
             ecg_signal = (ecg_signal-mean)/std
-        elif self.type == "none":
+        elif self.type == 'none':
             ecg_signal = ecg_signal
         else:
             raise NameError(f'Normalization type {self.type} is not included.')
@@ -68,4 +68,7 @@ class RandomCropping(object):
             return ecg_signal
 #add zeros to the end of the signal to reach a desired length
 class ZeroPadding(object):
-    pass
+    def __init__(self, padtype='end'):
+        self.padtype = padtype
+    def __call__(self, ecg_signal):
+        return ecg_signal

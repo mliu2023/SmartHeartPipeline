@@ -55,9 +55,9 @@ class ECGDataset(Dataset):
         demographics = get_demographics_from_header(headname)
 
         # retrieving hand-crafted features
-        ecg_features = get_ecg_features(x)
+        # ecg_features = get_ecg_features(x)
 
         # concatenating the additional features
-        additional_features = torch.concatenate((demographics, ecg_features), dim=1)
+        # additional_features = torch.concatenate((demographics, ecg_features), dim=1)
 
-        return ((x_transformed, additional_features), self.labels)
+        return ((x_transformed, demographics), self.labels[index])
