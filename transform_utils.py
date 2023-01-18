@@ -66,3 +66,6 @@ class RandomCropping(object):
             ecg_signal = ecg_signal[:][start:start+self.crop_size]
         else:
             return ecg_signal
+#add zeros to the end of the signal to reach a desired length
+class ZeroPadding(object):
+    pass
