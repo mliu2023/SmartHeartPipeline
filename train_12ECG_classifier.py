@@ -11,6 +11,7 @@ from dataset import ECGDataset
 from evaluate_12ECG_score import *
 from driver import *
 from transform_utils import *
+import shutil
 
 def train_12ECG_classifier(input_directory, output_directory, config_file):
 
@@ -22,8 +23,8 @@ def train_12ECG_classifier(input_directory, output_directory, config_file):
         classes[i] = str(classes[i])
 
     # retrieving filenames and labels from the data folder
-    filenames = [] # list of filenames
-    val_filenames = []
+    filenames = [] # list of filepaths 
+    val_filenames = [] #list of filenames
     labels = [] # list of one-hot encoded tensors, each of length 27
     for file in os.listdir(input_directory):
         filepath = os.path.join(input_directory, file)
@@ -60,12 +61,16 @@ def train_12ECG_classifier(input_directory, output_directory, config_file):
         # initializing the datasets
         train_set = ECGDataset(filenames=filenames[train_indices], labels=labels[train_indices], transforms=train_transforms)
         val_set = ECGDataset(filenames=filenames[val_indices], labels=labels[val_indices], transforms=val_transforms)
-
         # creating the data loaders (generators)
         train_loader = DataLoader(dataset=train_set, batch_size=128, shuffle=True)
         val_loader = DataLoader(dataset=val_set, batch_size=1, shuffle=False)
 
-        
+        #labels for validation
+        if not os.path.exists(f'ValidationLabels{i+1}'):
+            os.mkdir(f'ValidationLabels{i+1}')
+        for label_file in val_filenames[val_indices]:
+            #print(label_file)
+            shutil.copy(f'{input_directory}/{label_file}', f'ValidationLabels{i+1}')
         # training + validation loop
         print(f'Training on fold {i+1}')
         for epoch in range(1, total_epochs+1):
