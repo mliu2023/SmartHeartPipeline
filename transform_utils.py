@@ -3,6 +3,7 @@ from scipy.signal import resample, iirnotch, lfilter
 
 # composes a list of transforms together
 # all transforms should take in an ndarray and return an ndarray
+# every transform needs to have an __init__ and a __call__ method
 class Compose(object):
     def __init__(self, transforms):
         self.transforms = transforms
@@ -58,7 +59,7 @@ class Normalize(object):
             raise NameError(f'Normalization type {self.type} is not included.')
         return ecg_signal
 
-#crop_size will be assigned in train_12ECG_classifier
+# randomly crops a window of length crop_size from the signal
 class RandomCropping(object):
     def __init__(self, crop_size):
         self.crop_size = crop_size
@@ -67,17 +68,14 @@ class RandomCropping(object):
             start = np.random.randint(0, len(ecg_signal[0])-self.crop_size)
             ecg_signal = ecg_signal[:,start:start+self.crop_size]
         return ecg_signal
-#add zeros to the end of the signal to reach a desired length
-#max_length will be assigned in train_12ECG_classifier
+
+# add zeros to the end of the signal to reach max_length
 class ZeroPadding(object):
     def __init__(self, max_length, padtype='end'):
         self.padtype = padtype
         self.max_length = max_length
 
     def __call__(self, ecg_signal):
-        #print(ecg_signal.shape)
         if(self.max_length > len(ecg_signal[0])):
-            new_signal = np.zeros((len(ecg_signal), self.max_length))
-            new_signal[:, :len(ecg_signal[0])] = ecg_signal
-            return new_signal
+            ecg_signal = np.pad(ecg_signal, (0, self.max_length-len(ecg_signal[0])))
         return ecg_signal

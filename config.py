@@ -8,10 +8,11 @@ warmup_epochs = 10
 total_epochs = 100
 max_length = 1500
 window_size = 1500
-stride = 750
+window_stride = 750
 lr = 1e-3
+weight_decay = 1e-5
 loss = torch.nn.BCEWithLogitsLoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-5)
+optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
 cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, total_epochs-warmup_epochs)
 lr_scheduler = Warmup_LR(optimizer=optimizer,
                         warmup_iteration=warmup_epochs,
