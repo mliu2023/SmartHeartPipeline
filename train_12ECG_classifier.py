@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 import numpy as np
 import sklearn.model_selection
 import os
-import tqdm
+from tqdm import tqdm
 import importlib
 from dataset import ECGDataset
 from transform_utils import *
@@ -30,9 +30,17 @@ def train_12ECG_classifier(input_directory, output_directory, config_file):
             labels.append(get_labels_from_header(filepath, classes))
     filenames = np.array(filenames)
     labels = np.array(labels)
-
+    # define model, training parameters, loss, optimizer, and learning rate scheduler
+    config = __import__(config_file)
+    model = config.model
+    warmup_epochs = config.warmup_epochs
+    total_epochs = config.total_epochs
+    loss = config.loss
+    max_length = config.max_length
+    optimizer = config.optimizer
+    lr_scheduler = config.lr_scheduler
     # composing preprocessing methods
-    train_transforms = Compose([Resample, Normalize, NotchFilter, RandomCropping, ZeroPadding])
+    train_transforms = Compose([Resample(), Normalize(), NotchFilter(), ZeroPadding(max_length=max_length), RandomCropping(crop_size=config.window_size)])
     val_transforms = Compose([Resample, Normalize, NotchFilter])
 
     # train model
@@ -40,26 +48,19 @@ def train_12ECG_classifier(input_directory, output_directory, config_file):
     for i, (train_indices, val_indices) in enumerate(k_fold.split(filenames, labels)):
         # initializing the datasets
         train_set = ECGDataset(filenames=filenames[train_indices], labels=labels[train_indices], transforms=train_transforms)
-        val_set = ECGDataset(filenames=filenames[val_indices], labels=labels[val_indices], transforms=val_transforms)
+        #val_set = ECGDataset(filenames=filenames[val_indices], labels=labels[val_indices], transforms=val_transforms)
 
         # creating the data loaders (generators)
         train_loader = DataLoader(dataset=train_set, batch_size=32, shuffle=True)
-        val_loader = DataLoader(dataset=val_set, batch_size=32, shuffle=False)
+        #val_loader = DataLoader(dataset=val_set, batch_size=32, shuffle=False)
 
-        # define model, training parameters, loss, optimizer, and learning rate scheduler
-        config = __import__(config_file)
-        model = config.model
-        warmup_epochs = config.warmup_epochs
-        total_epochs = config.total_epochs
-        loss = config.loss
-        optimizer = config.optimizer
-        lr_scheduler = config.lr_scheduler
+        
         # training + validation loop
         print(f'Training on fold {i+1}')
         for epoch in range(1, total_epochs+1):
             print(f'Epoch {epoch}/{total_epochs}')
             train(model, train_loader, loss, optimizer, lr_scheduler)
-            val(model, val_loader, classes, filenames[val_indices], output_directory)
+            #val(model, val_loader, classes, filenames[val_indices], output_directory)
 
 # performs one training iteration
 def train(model, train_loader, loss, optimizer, lr_scheduler=None):

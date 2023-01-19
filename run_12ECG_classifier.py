@@ -8,7 +8,7 @@ def run_12ECG_classifier(data,header_data,loaded_model, config_file):
 
     config = __import__(config_file)
     window_size = config.window_size
-    
+    stride = config.stride
     # Use your classifier here to obtain a label and score for each class.
     model = loaded_model['model']
     imputer = loaded_model['imputer']

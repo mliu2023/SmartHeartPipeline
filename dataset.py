@@ -48,7 +48,7 @@ class ECGDataset(Dataset):
         x = scio.loadmat(filename)['val']
         x = np.array(x, dtype=np.float)
         # apply the transforms; source frequency is needed to correctly resample
-        x_transformed = self.transforms(data=x, source_frequency=get_frequency_from_header(headname))
+        x_transformed = self.transforms(ecg_signal=x, source_freq=get_frequency_from_header(headname))
         x_transformed = torch.tensor(x, dtype=torch.float)
 
         # retrieving age and gender

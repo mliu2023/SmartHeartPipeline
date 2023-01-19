@@ -3,9 +3,10 @@ from warmup_lr import Warmup_LR
 from models.SEResNet import ResNet
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-model = ResNet()
+model = ResNet().to(device)
 warmup_epochs = 10
 total_epochs = 100
+max_length = 7500
 window_size = 1500
 stride = 750
 lr = 1e-3

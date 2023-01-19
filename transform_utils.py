@@ -21,7 +21,7 @@ class Resample(object):
     def __init__(self, new_freq = 500):
         self.new_freq = new_freq
     def __call__(self, ecg_signal, source_freq = 500):
-        ecg_signal = resample(ecg_signal, int(len(ecg_signal) * (self.new_freq / source_freq)), axis=1)
+        ecg_signal = resample(ecg_signal, int(len(ecg_signal[0]) * (self.new_freq / source_freq)), axis=1)
         return ecg_signal
 
 # removes specific frequencies from the ecg signal
@@ -44,8 +44,8 @@ class Normalize(object):
 
     def __call__(self, ecg_signal):
         if self.type == 'min-max':
-            max = np.amax(ecg_signal, axis=1)
-            min = np.amin(ecg_signal, axis=1)
+            max = np.amax(ecg_signal, axis=1, keepdims=True)
+            min = np.amin(ecg_signal, axis=1, keepdims=True)
             ecg_signal = (ecg_signal-min)/(max-min)
         elif self.type == 'mean-std':
             mean = np.mean(ecg_signal, axis=1)
@@ -64,18 +64,22 @@ class RandomCropping(object):
     def __call__(self, ecg_signal):
         if(self.crop_size < len(ecg_signal[0])):
             start = np.random.randint(0, len(ecg_signal[0])-self.crop_size)
-            ecg_signal = ecg_signal[:][start:start+self.crop_size]
-        else:
-            return ecg_signal
+            new_signal = ecg_signal[:,start:start+self.crop_size]
+        return new_signal
 #add zeros to the end of the signal to reach a desired length
 #max_length will be assigned in train_12ECG_classifier
 class ZeroPadding(object):
     def __init__(self, max_length, padtype='end'):
         self.padtype = padtype
-        self.maxlength = max_length
+        self.max_length = max_length
 
     def __call__(self, ecg_signal):
-        if(self.max_length > len(ecg_signal)):
-            for i in range(len(ecg_signal), self.max_length):
-                ecg_signal = np.append(ecg_signal, axis=1)
+        #print(ecg_signal.shape)
+        if(self.max_length > len(ecg_signal[0])):
+            new_signal = np.zeros((len(ecg_signal), self.max_length))
+            new_signal[:, :len(ecg_signal[0])] = ecg_signal
+            return new_signal
+        else:
+            ecg_signal = ecg_signal[:, :self.max_length].copy()
+        assert ecg_signal.shape[1] == 7500
         return ecg_signal
