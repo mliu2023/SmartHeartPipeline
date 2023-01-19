@@ -32,8 +32,8 @@ def train_12ECG_classifier(input_directory, output_directory, config_file):
     labels = np.array(labels)
 
     # composing preprocessing methods
-    train_transforms = Compose([Resample, Normalize, Notch_filter, RandomCropping, ZeroPadding])
-    val_transforms = Compose([Resample, Normalize, Notch_filter])
+    train_transforms = Compose([Resample, Normalize, NotchFilter, RandomCropping, ZeroPadding])
+    val_transforms = Compose([Resample, Normalize, NotchFilter])
 
     # train model
     k_fold = sklearn.model_selection.KFold(n_splits=10)

@@ -10,7 +10,7 @@ class Compose(object):
     def __call__(self, ecg_signal, source_freq):
         for t in self.transforms:
             # if the transform is resample, then we have to pass in the source frequency as well
-            if(isinstance(t, Resample)):
+            if(isinstance(t, Resample) or isinstance(t, NotchFilter)):
                 ecg_signal = t(ecg_signal, source_freq)
             else:
                 ecg_signal = t(ecg_signal)
@@ -25,7 +25,7 @@ class Resample(object):
         return ecg_signal
 
 # removes specific frequencies from the ecg signal
-class Notch_filter(object):
+class NotchFilter(object):
     def __init__(self, remove_freqs = [50, 60]):
         self.remove_freqs = remove_freqs
     def __call__(self, ecg_signal, source_freq = 500):
