@@ -49,7 +49,7 @@ class ECGDataset(Dataset):
         x = np.array(x, dtype=np.float)
         # apply the transforms; source frequency is needed to correctly resample
         x_transformed = self.transforms(ecg_signal=x, source_freq=get_frequency_from_header(headname))
-        x_transformed = torch.tensor(x, dtype=torch.float)
+        x_transformed = torch.tensor(x_transformed, dtype=torch.float)
 
         # retrieving age and gender
         demographics = get_demographics_from_header(headname)
@@ -57,7 +57,7 @@ class ECGDataset(Dataset):
         # retrieving hand-crafted features
         # ecg_features = get_ecg_features(x)
 
-        # concatenating the additional features
+        # concatenating the additional featuresS
         # additional_features = torch.concatenate((demographics, ecg_features), dim=1)
 
         return ((x_transformed, demographics), self.labels[index])

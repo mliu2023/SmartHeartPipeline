@@ -46,10 +46,11 @@ class Normalize(object):
         if self.type == 'min-max':
             max = np.amax(ecg_signal, axis=1, keepdims=True)
             min = np.amin(ecg_signal, axis=1, keepdims=True)
-            ecg_signal = (ecg_signal-min)/(max-min)
+            eps = 1e-8
+            ecg_signal = (ecg_signal-min)/(max-min+eps)
         elif self.type == 'mean-std':
-            mean = np.mean(ecg_signal, axis=1)
-            std = np.std(ecg_signal, axis=1)
+            mean = np.mean(ecg_signal, axis=1, keepdims=True)
+            std = np.std(ecg_signal, axis=1, keepdims=True)
             ecg_signal = (ecg_signal-mean)/std
         elif self.type == 'none':
             ecg_signal = ecg_signal
@@ -64,8 +65,8 @@ class RandomCropping(object):
     def __call__(self, ecg_signal):
         if(self.crop_size < len(ecg_signal[0])):
             start = np.random.randint(0, len(ecg_signal[0])-self.crop_size)
-            new_signal = ecg_signal[:,start:start+self.crop_size]
-        return new_signal
+            ecg_signal = ecg_signal[:,start:start+self.crop_size]
+        return ecg_signal
 #add zeros to the end of the signal to reach a desired length
 #max_length will be assigned in train_12ECG_classifier
 class ZeroPadding(object):
@@ -79,7 +80,4 @@ class ZeroPadding(object):
             new_signal = np.zeros((len(ecg_signal), self.max_length))
             new_signal[:, :len(ecg_signal[0])] = ecg_signal
             return new_signal
-        else:
-            ecg_signal = ecg_signal[:, :self.max_length].copy()
-        assert ecg_signal.shape[1] == 7500
         return ecg_signal

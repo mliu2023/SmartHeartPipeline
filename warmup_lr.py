@@ -17,6 +17,6 @@ class Warmup_LR(object):
             self.warmup_learning_rate(current_iteration)
         else:
             self.after_scheduler.step(current_iteration-self.warmup_iteration)
-    
+        
     def load_state_dict(self, state_dict):
         self.after_scheduler.load_state_dict(state_dict)
