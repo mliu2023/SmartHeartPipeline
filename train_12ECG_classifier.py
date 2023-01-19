@@ -53,17 +53,12 @@ def train_12ECG_classifier(input_directory, output_directory, config_file):
         total_epochs = config.total_epochs
         loss = config.loss
         optimizer = config.optimizer
-        cosine_scheduler = config.consine_scheduler
         lr_scheduler = config.lr_scheduler
-
         # training + validation loop
         print(f'Training on fold {i+1}')
         for epoch in range(1, total_epochs+1):
             print(f'Epoch {epoch}/{total_epochs}')
-            if epoch < warmup_epochs:
-                train(model, train_loader, loss, optimizer, lr_scheduler)
-            else:
-                train(model, train_loader, loss, optimizer, cosine_scheduler)
+            train(model, train_loader, loss, optimizer, lr_scheduler)
             val(model, val_loader, classes, filenames[val_indices], output_directory)
 
 # performs one training iteration
@@ -87,26 +82,33 @@ def train(model, train_loader, loss, optimizer, lr_scheduler=None):
         lr_scheduler.step()
 
 # performs one validation iteration and outputs the challenge score
-def val(model, val_loader, classes, filenames, output_directory):
+def val(model, val_loader, classes, filenames, window_size, stride, output_directory, thresholds = None):
     with tqdm(val_loader, unit='batch') as minibatch:
         for (x, demographics), y in minibatch:
             # .cuda() loads the data onto the GPU
             # this code will not run without a compatible NVIDIA GPU
-            x = x.cuda()
+            #x = x.cuda()
             demographics = demographics.cuda()
             y = y.cuda()
+            windows = 0
+            scores = torch.zeros((x.shape[0], 27,), dtype = torch.float)
+            for i in range(0,x.shape[2], stride):
+                window = x[:,:,i+window_size]
+                window = window.cuda()
 
-            y_pred = model(x, demographics)
-
+                y_pred = model(x, demographics)
+                y_pred = torch.sigmoid(y_pred)
+                scores += y_pred
+                windows += 1
+            scores /= windows 
             # evaluating the challenge score
-            y_pred = torch.sigmoid(y_pred).squeeze() # sigmoid activation for multilabel classification
-            y_label_pred = y_pred > 0.5 # the threshold will be adjusted after the model is done training
+            y_label_pred = scores > 0.5 # the threshold will be adjusted after the model is done training
 
-            y_pred = y_pred.detach().cpu().numpy()
+            scores = scores.detach().cpu().numpy()
             y_label_pred = np.array(y_label_pred.detach().cpu().numpy(), dtype=np.uint8)
 
 
-            save_predictions(output_directory,filenames,scores=y_pred,labels=y_label_pred,classes=classes)
+            save_predictions(output_directory,filenames,scores=scores,labels=y_label_pred,classes=classes)
 
 def save_predictions(output_directory,filenames,scores,labels,classes):
     for filename in filenames:
