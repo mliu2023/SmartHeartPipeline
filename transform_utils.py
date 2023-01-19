@@ -57,6 +57,7 @@ class Normalize(object):
             raise NameError(f'Normalization type {self.type} is not included.')
         return ecg_signal
 
+#crop_size will be assigned in train_12ECG_classifier
 class RandomCropping(object):
     def __init__(self, crop_size):
         self.crop_size = crop_size
@@ -67,8 +68,14 @@ class RandomCropping(object):
         else:
             return ecg_signal
 #add zeros to the end of the signal to reach a desired length
+#max_length will be assigned in train_12ECG_classifier
 class ZeroPadding(object):
-    def __init__(self, padtype='end'):
+    def __init__(self, padtype='end', max_length):
         self.padtype = padtype
+        self.maxlength = max_length
+
     def __call__(self, ecg_signal):
+        if(self.max_length > len(ecg_signal)):
+            for i in range(len(ecg_signal), self.max_length):
+                ecg_signal = np.append(ecg_signal, axis=1)
         return ecg_signal
