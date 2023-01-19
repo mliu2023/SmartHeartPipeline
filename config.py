@@ -5,6 +5,8 @@ from models.SEResNet import ResNet
 model = ResNet()
 warmup_epochs = 10
 total_epochs = 100
+window_size = 1500
+stride = 750
 lr = 1e-3
 loss = torch.nn.BCELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-5)
