@@ -1,8 +1,8 @@
 import torch
 from warmup_lr import Warmup_LR
-from models import resnet18
+from models.SEResNet import ResNet
 
-model = resnet18()
+model = ResNet()
 warmup_epochs = 10
 total_epochs = 100
 lr = 1e-3
