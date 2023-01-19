@@ -49,16 +49,21 @@ def train_12ECG_classifier(input_directory, output_directory, config_file):
         # define model, training parameters, loss, optimizer, and learning rate scheduler
         config = __import__(config_file)
         model = config.model
+        warmup_epochs = config.warmup_epochs
         total_epochs = config.total_epochs
         loss = config.loss
         optimizer = config.optimizer
+        cosine_scheduler = config.consine_scheduler
         lr_scheduler = config.lr_scheduler
 
         # training + validation loop
         print(f'Training on fold {i+1}')
         for epoch in range(1, total_epochs+1):
             print(f'Epoch {epoch}/{total_epochs}')
-            train(model, train_loader, loss, optimizer, lr_scheduler)
+            if epoch < warmup_epochs:
+                train(model, train_loader, loss, optimizer, lr_scheduler)
+            else:
+                train(model, train_loader, loss, optimizer, cosine_scheduler)
             val(model, val_loader, classes, filenames[val_indices], output_directory)
 
 # performs one training iteration
