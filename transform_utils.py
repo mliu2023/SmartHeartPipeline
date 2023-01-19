@@ -70,7 +70,7 @@ class RandomCropping(object):
 #add zeros to the end of the signal to reach a desired length
 #max_length will be assigned in train_12ECG_classifier
 class ZeroPadding(object):
-    def __init__(self, padtype='end', max_length):
+    def __init__(self, max_length, padtype='end'):
         self.padtype = padtype
         self.maxlength = max_length
 
