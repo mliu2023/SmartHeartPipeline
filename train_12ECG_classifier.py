@@ -63,21 +63,27 @@ def train_12ECG_classifier(input_directory, output_directory, config_file):
 
 
     # train model using 10-fold cross validation
-    k_fold = sklearn.model_selection.KFold(n_splits=10)
+    k_fold = sklearn.model_selection.KFold(n_splits=10, shuffle=True, random_state=0)
     for i, (train_indices, val_indices) in enumerate(k_fold.split(filenames, labels)):
         # initializing the datasets
         train_set = ECGDataset(filenames=filenames[train_indices], labels=labels[train_indices], transforms=train_transforms)
         val_set = ECGDataset(filenames=filenames[val_indices], labels=labels[val_indices], transforms=val_transforms)
+        
         # creating the data loaders (generators)
-        train_loader = DataLoader(dataset=train_set, batch_size=128, shuffle=True)
+        train_loader = DataLoader(dataset=train_set, batch_size=24, shuffle=True)
         val_loader = DataLoader(dataset=val_set, batch_size=1, shuffle=False)
-
+        
+        pos = torch.zeros((27,))
+        #figure out the training weight loss
+        for (x, demographics), y in train_loader:
+            pos += y.sum(dim=0)
+        print(pos)
+        pos_weight = (len(train_indices)-pos)/pos
+        pos_weight = pos_weight.cuda()
+        print(pos_weight)
+        loss.pos_weight=pos_weight
+        
         #labels for validation
-        if not os.path.exists(f'ValidationLabels{i+1}'):
-            os.mkdir(f'ValidationLabels{i+1}')
-        for label_file in val_filenames[val_indices]:
-            #print(label_file)
-            shutil.copy(f'{input_directory}/{label_file}', f'ValidationLabels{i+1}')
         # training + validation loop
         print(f'Training on fold {i+1}')
         for epoch in range(1, total_epochs+1):
@@ -123,6 +129,8 @@ def val(model, val_loader, classes, filenames, window_size, window_stride, outpu
             for i in range(0, x.shape[2]-window_size+1, window_stride):
                 window = x[:, :, i: i+window_size]
                 windows.append(window.unsqueeze(0))
+                if len(windows) > 10:
+                    break
             windows = torch.squeeze(torch.vstack(windows)).cuda()
             demographics = demographics.expand(windows.shape[0], demographics.shape[1])
             y_preds = model(windows, demographics)
