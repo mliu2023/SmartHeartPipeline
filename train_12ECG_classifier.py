@@ -26,6 +26,8 @@ def train_12ECG_classifier(input_directory, output_directory, config_file):
     filenames = [] # list of filepaths 
     val_filenames = [] #list of filenames
     labels = [] # list of one-hot encoded tensors, each of length 27
+    label_filenames = [] # list of filepaths to header files
+    output_filenames = [] # list of filepaths to output files
     for file in os.listdir(input_directory):
         filepath = os.path.join(input_directory, file)
         if not file.lower().startswith('.') and file.lower().endswith('mat') and os.path.isfile(filepath):
@@ -33,9 +35,14 @@ def train_12ECG_classifier(input_directory, output_directory, config_file):
             val_filenames.append(file)
         if not file.lower().startswith('.') and file.lower().endswith('hea') and os.path.isfile(filepath):
             labels.append(get_labels_from_header(filepath, classes))
+            label_filenames.append(filepath)
+            output_filenames.append(os.path.join(output_directory, file.replace('.hea', '.csv')))
+
     filenames = np.array(filenames)
     val_filenames = np.array(val_filenames)
     labels = np.array(labels)
+    label_filenames = np.array(label_filenames)
+    output_filenames = np.array(output_filenames)
 
 
     # define model, training parameters, loss, optimizer, and learning rate scheduler
@@ -79,6 +86,8 @@ def train_12ECG_classifier(input_directory, output_directory, config_file):
             val(model, val_loader, classes, val_filenames[val_indices], window_size, window_stride, output_directory)
             if lr_scheduler is not None:
                 lr_scheduler.step(epoch)
+
+            run(label_filenames[val_indices], output_filenames[val_indices], 'scores.csv')
 
 
 # performs one training iteration
@@ -130,6 +139,8 @@ def val(model, val_loader, classes, filenames, window_size, window_stride, outpu
 
             save_challenge_predictions(output_directory,filenames[batch_num],scores=scores,labels=y_label_pred,classes=classes)
 
+    #do we need a separate output_directory for each foldo hhh right maybe
+    #i made label directories for each of the folds but i think code might get confused if you have all the outputs in one folder 
 # gets the class labels from the given header file(s)
 def get_labels_from_header(header_file, classes):
     with open(header_file, 'r') as file:
@@ -143,3 +154,48 @@ def get_labels_from_header(header_file, classes):
                 class_index = classes.index(diagnosis)
                 labels[class_index] = 1
         return labels
+
+def evaluate_score(label_filenames, output_filenames):
+    # Define the weights, the SNOMED CT code for the normal class, and equivalent SNOMED CT codes.
+    weights_file = 'weights.csv'
+    normal_class = '426783006'
+    equivalent_classes = [['713427006', '59118001'], ['284470004', '63593006'], ['427172004', '17338001']]
+
+    # Load the scored classes and the weights for the Challenge metric.
+    print('Loading weights...')
+    classes, weights = load_weights(weights_file, equivalent_classes)
+
+    # Load the label and output files.
+    print('Loading label and output files...')
+    label_files, output_files = label_filenames, output_filenames
+    labels = load_labels(label_files, classes, equivalent_classes)
+    binary_outputs, scalar_outputs = load_outputs(output_files, classes, equivalent_classes)
+
+    # Evaluate the model by comparing the labels and outputs.
+    print('Evaluating model...')
+
+    print('- AUROC and AUPRC...')
+    auroc, auprc, auroc_classes, auprc_classes = compute_auc(labels, scalar_outputs)
+
+    print('- Accuracy...')
+    accuracy = compute_accuracy(labels, binary_outputs)
+
+    print('- F-measure...')
+    f_measure, f_measure_classes = compute_f_measure(labels, binary_outputs)
+
+    print('- F-beta and G-beta measures...')
+    f_beta_measure, g_beta_measure = compute_beta_measures(labels, binary_outputs, beta=2)
+
+    print('- Challenge metric...')
+    challenge_metric = compute_challenge_metric(weights, labels, binary_outputs, classes, normal_class)
+
+    print('Done.')
+
+    # Return the results.
+    return classes, auroc, auprc, auroc_classes, auprc_classes, accuracy, f_measure, f_measure_classes, f_beta_measure, g_beta_measure, challenge_metric
+
+def run(label_filenames, output_filenames, challenge_score_file):
+    classes, auroc, auprc, auroc_classes, auprc_classes, accuracy, f_measure, f_measure_classes, f_beta_measure, g_beta_measure, challenge_metric = evaluate_score(label_filenames, output_filenames)
+    output_string = 'AUROC,AUPRC,Accuracy,F-measure,Fbeta-measure,Gbeta-measure,Challenge metric\n{:.3f},{:.3f},{:.3f},{:.3f},{:.3f},{:.3f},{:.3f}'.format(auroc, auprc, accuracy, f_measure, f_beta_measure, g_beta_measure, challenge_metric)
+    with open(challenge_score_file, 'w') as f:
+        f.write(output_string)

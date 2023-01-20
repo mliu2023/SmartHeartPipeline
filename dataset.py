@@ -46,7 +46,7 @@ class ECGDataset(Dataset):
         filename = self.filenames[index]
         headname = filename.replace('.mat', '.hea')
         x = scio.loadmat(filename)['val']
-        x = np.array(x, dtype=np.float)
+        x = np.array(x, dtype=np.float32)
         # apply the transforms; source frequency is needed to correctly resample
         x_transformed = self.transforms(ecg_signal=x, source_freq=get_frequency_from_header(headname))
         x_transformed = torch.tensor(x_transformed, dtype=torch.float)

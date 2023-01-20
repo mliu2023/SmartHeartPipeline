@@ -169,6 +169,8 @@ def load_labels(label_files, classes, equivalent_classes):
     num_recordings = len(label_files)
     num_classes = len(classes)
 
+
+
     # Load diagnoses.
     tmp_labels = list()
     for i in range(num_recordings):
@@ -177,10 +179,9 @@ def load_labels(label_files, classes, equivalent_classes):
                 if l.startswith('#Dx'):
                     dxs = [arr.strip() for arr in l.split(': ')[1].split(',')]
                     dxs = replace_equivalent_classes(dxs, equivalent_classes)
-                    tmp_labels.append(dxs)
-
+                    tmp_labels.append(dxs)             
     # Use one-hot encoding for labels.
-    labels = np.zeros((num_recordings, num_classes), dtype=np.bool)
+    labels = np.zeros((num_recordings, num_classes), dtype=bool)
     for i in range(num_recordings):
         dxs = tmp_labels[i]
         for j, x in enumerate(classes):
@@ -236,7 +237,7 @@ def load_outputs(output_files, classes, equivalent_classes):
     # Use one-hot encoding for binary outputs and the same order for scalar outputs.
     # If equivalent classes have different binary outputs, then the representative class is positive if any equivalent class is positive.
     # If equivalent classes have different scalar outputs, then the representative class is the mean of the equivalent classes.
-    binary_outputs = np.zeros((num_recordings, num_classes), dtype=np.bool)
+    binary_outputs = np.zeros((num_recordings, num_classes), dtype=bool)
     scalar_outputs = np.zeros((num_recordings, num_classes), dtype=np.float64)
     for i in range(num_recordings):
         dxs = tmp_labels[i]
@@ -461,7 +462,7 @@ def compute_challenge_metric(weights, labels, outputs, classes, normal_class):
     correct_score = np.nansum(weights * A)
 
     # Compute the score for the model that always chooses the normal class.
-    inactive_outputs = np.zeros((num_recordings, num_classes), dtype=np.bool)
+    inactive_outputs = np.zeros((num_recordings, num_classes), dtype=bool)
     inactive_outputs[:, normal_index] = 1
     A = compute_modified_confusion_matrix(labels, inactive_outputs)
     inactive_score = np.nansum(weights * A)
