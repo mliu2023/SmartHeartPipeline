@@ -4,8 +4,8 @@ from models.SEResNet import ResNet
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 model = ResNet().to(device)
-warmup_epochs = 10
-total_epochs = 100
+warmup_epochs = 1
+total_epochs = 1
 min_length = 2500
 window_size = 2500
 window_stride = 1000

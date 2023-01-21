@@ -44,6 +44,7 @@ class Normalize(object):
         self.type = type
 
     def __call__(self, ecg_signal):
+        # not 100% sure if this works
         if self.type == 'min-max':
             max = np.amax(ecg_signal, axis=1, keepdims=True)
             min = np.amin(ecg_signal, axis=1, keepdims=True)

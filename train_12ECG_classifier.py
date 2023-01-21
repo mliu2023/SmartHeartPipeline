@@ -68,6 +68,7 @@ def train_12ECG_classifier(input_directory, output_directory, config_file):
     val_transforms = Compose([Resample(), Normalize(), NotchFilter(), ZeroPadding(min_length=min_length)])
 
     model_list = []
+    thresholds_list = []
 
     # train model using 10-fold cross validation
     k_fold = sklearn.model_selection.KFold(n_splits=10, shuffle=True, random_state=0)
@@ -92,6 +93,29 @@ def train_12ECG_classifier(input_directory, output_directory, config_file):
             train(model, train_loader, loss, optimizer, lr_scheduler)
             val(model, val_loader, classes, val_filenames[val_indices], window_size, window_stride, output_directory)
             run(label_filenames[val_indices], output_filenames[val_indices], 'scores.csv')
+
+        # overall threshold training
+        best_score, best_threshold = 0, 0.5
+        for threshold in np.linspace(0.1, 0.9, 9):
+            _, _, _, _, _, _, _, _, _, _, score = evaluate_score(label_filenames[val_indices], output_filenames[val_indices], threshold, verbose=False)
+            if(score > best_score):
+                best_threshold = threshold
+                best_score = score
+
+        # class threshold training
+        model_threshold = np.zeros(len(classes))
+        for i in range(len(classes)):
+            best_class_score, best_class_threshold = 0, 0.5
+            for class_threshold in np.linspace(0.1, 0.9, 9):
+                thresholds = np.full(len(classes), best_threshold)
+                thresholds[i] = class_threshold
+                _, _, _, _, _, _, _, _, _, _, class_score = evaluate_score(label_filenames[val_indices], output_filenames[val_indices], thresholds, verbose=False)
+                if(class_score > best_class_score):
+                    best_class_threshold = class_threshold
+                    best_class_score = class_score
+            model_threshold[i] = best_class_threshold
+        thresholds_list.append(model_threshold)
+        print(model_threshold)
         model_list.append(model)
 
 
@@ -164,41 +188,46 @@ def get_labels_from_header(header_file, classes):
                 labels[class_index] = 1
         return labels
 
-def evaluate_score(label_filenames, output_filenames):
+def evaluate_score(label_filenames, output_filenames, thresholds = None, verbose = True):
+
+    verboseprint = print if verbose else lambda *a, **k: None
+
     # Define the weights, the SNOMED CT code for the normal class, and equivalent SNOMED CT codes.
     weights_file = 'weights.csv'
     normal_class = '426783006'
     equivalent_classes = [['713427006', '59118001'], ['284470004', '63593006'], ['427172004', '17338001']]
 
     # Load the scored classes and the weights for the Challenge metric.
-    print('Loading weights...')
+    verboseprint('Loading weights...')
     classes, weights = load_weights(weights_file, equivalent_classes)
 
     # Load the label and output files.
-    print('Loading label and output files...')
+    verboseprint('Loading label and output files...')
     label_files, output_files = label_filenames, output_filenames
     labels = load_labels(label_files, classes, equivalent_classes)
     binary_outputs, scalar_outputs = load_outputs(output_files, classes, equivalent_classes)
+    if(thresholds is not None):
+        binary_outputs = scalar_outputs > thresholds
 
     # Evaluate the model by comparing the labels and outputs.
-    print('Evaluating model...')
+    verboseprint('Evaluating model...')
 
-    print('- AUROC and AUPRC...')
+    verboseprint('- AUROC and AUPRC...')
     auroc, auprc, auroc_classes, auprc_classes = compute_auc(labels, scalar_outputs)
 
-    print('- Accuracy...')
+    verboseprint('- Accuracy...')
     accuracy = compute_accuracy(labels, binary_outputs)
 
-    print('- F-measure...')
+    verboseprint('- F-measure...')
     f_measure, f_measure_classes = compute_f_measure(labels, binary_outputs)
 
-    print('- F-beta and G-beta measures...')
+    verboseprint('- F-beta and G-beta measures...')
     f_beta_measure, g_beta_measure = compute_beta_measures(labels, binary_outputs, beta=2)
 
-    print('- Challenge metric...')
+    verboseprint('- Challenge metric...')
     challenge_metric = compute_challenge_metric(weights, labels, binary_outputs, classes, normal_class)
 
-    print('Done.')
+    verboseprint('Done.')
 
     # Return the results.
     return classes, auroc, auprc, auroc_classes, auprc_classes, accuracy, f_measure, f_measure_classes, f_beta_measure, g_beta_measure, challenge_metric

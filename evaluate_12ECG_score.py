@@ -144,7 +144,7 @@ def load_weights(weight_file, equivalent_classes):
     assert(rows == cols)
 
     # For each collection of equivalent classes, replace each class with the representative class for the set.
-    rows = replace_equivalent_classes(rows, equivalent_classes)
+    # rows = replace_equivalent_classes(rows, equivalent_classes)
 
     # Check that equivalent classes have identical weights.
     for j, x in enumerate(rows):
@@ -178,7 +178,7 @@ def load_labels(label_files, classes, equivalent_classes):
             for l in f:
                 if l.startswith('#Dx'):
                     dxs = [arr.strip() for arr in l.split(': ')[1].split(',')]
-                    dxs = replace_equivalent_classes(dxs, equivalent_classes)
+                    # dxs = replace_equivalent_classes(dxs, equivalent_classes)
                     tmp_labels.append(dxs)             
     # Use one-hot encoding for labels.
     labels = np.zeros((num_recordings, num_classes), dtype=bool)
@@ -214,7 +214,7 @@ def load_outputs(output_files, classes, equivalent_classes):
                     arrs = [arr.strip() for arr in l.split(',')]
                     if j==0:
                         row = arrs
-                        row = replace_equivalent_classes(row, equivalent_classes)
+                        # row = replace_equivalent_classes(row, equivalent_classes)
                         tmp_labels.append(row)
                     elif j==1:
                         row = list()
