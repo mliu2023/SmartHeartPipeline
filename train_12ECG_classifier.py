@@ -46,8 +46,11 @@ def train_12ECG_classifier(input_directory, output_directory, config_file):
 
     # define model, training parameters, loss, optimizer, and learning rate scheduler
     config = __import__(config_file)
-    model = config.model
+
     total_epochs = config.total_epochs
+    min_length = config.min_length
+    window_stride = config.window_stride
+    window_size = config.window_size
 
     #### Weighted Loss ####
     loss = config.loss
@@ -59,17 +62,12 @@ def train_12ECG_classifier(input_directory, output_directory, config_file):
     print(pos_weight)
     loss.pos_weight = pos_weight
 
-    max_length = config.max_length
-    optimizer = config.optimizer
-    lr_scheduler = config.lr_scheduler
-    window_stride = config.window_stride
-    window_size = config.window_size
-
 
     # composing preprocessing methods
-    train_transforms = Compose([Resample(), Normalize(), NotchFilter(), ZeroPadding(max_length=max_length), RandomCropping(crop_size=config.window_size)])
-    val_transforms = Compose([Resample(), Normalize(), NotchFilter(), ZeroPadding(max_length=max_length)])
+    train_transforms = Compose([Resample(), Normalize(), NotchFilter(), RandomCropping(crop_size=config.window_size), ZeroPadding(min_length=min_length)])
+    val_transforms = Compose([Resample(), Normalize(), NotchFilter(), ZeroPadding(min_length=min_length)])
 
+    model_list = []
 
     # train model using 10-fold cross validation
     k_fold = sklearn.model_selection.KFold(n_splits=10, shuffle=True, random_state=0)
@@ -82,6 +80,11 @@ def train_12ECG_classifier(input_directory, output_directory, config_file):
         train_loader = DataLoader(dataset=train_set, batch_size=24, shuffle=True)
         val_loader = DataLoader(dataset=val_set, batch_size=1, shuffle=False)
         
+        # imports from config file
+        model = config.model
+        optimizer = config.optimizer
+        lr_scheduler = config.lr_scheduler
+
         # training + validation loop
         print(f'Training on fold {i+1}')
         for epoch in range(1, total_epochs+1):
@@ -89,6 +92,7 @@ def train_12ECG_classifier(input_directory, output_directory, config_file):
             train(model, train_loader, loss, optimizer, lr_scheduler)
             val(model, val_loader, classes, val_filenames[val_indices], window_size, window_stride, output_directory)
             run(label_filenames[val_indices], output_filenames[val_indices], 'scores.csv')
+        model_list.append(model)
 
 
 # performs one training iteration
