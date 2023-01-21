@@ -129,10 +129,10 @@ def val(model, val_loader, classes, filenames, window_size, window_stride, outpu
             windows = []
             for i in range(0, x.shape[2]-window_size+1, window_stride):
                 window = x[:, :, i: i+window_size]
-                windows.append(window.unsqueeze(0))
+                windows.append(window)
                 if len(windows) > 10:
                     break
-            windows = torch.squeeze(torch.vstack(windows)).cuda()
+            windows = torch.vstack(windows).cuda()
             demographics = demographics.expand(windows.shape[0], demographics.shape[1])
             y_preds = model(windows, demographics)
             y_preds = torch.sigmoid(y_preds)
