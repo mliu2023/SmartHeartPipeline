@@ -88,16 +88,13 @@ def train_12ECG_classifier(input_directory, output_directory, config_file):
         print(f'Training on fold {i+1}')
         for epoch in range(1, total_epochs+1):
             print(f'Epoch {epoch}/{total_epochs}')
-            train(model, train_loader, loss, optimizer)
+            train(model, train_loader, loss, optimizer, lr_scheduler)
             val(model, val_loader, classes, val_filenames[val_indices], window_size, window_stride, output_directory)
-            if lr_scheduler is not None:
-                lr_scheduler.step(epoch)
-
             run(label_filenames[val_indices], output_filenames[val_indices], 'scores.csv')
 
 
 # performs one training iteration
-def train(model, train_loader, loss, optimizer):
+def train(model, train_loader, loss, optimizer, lr_scheduler):
     with tqdm(train_loader, unit='batch') as minibatch:
         for (x, demographics), y in minibatch:
             # .cuda() loads the data onto the GPU
@@ -114,6 +111,8 @@ def train(model, train_loader, loss, optimizer):
             optimizer.step()
 
             minibatch.set_postfix(loss=train_loss.item())
+    if lr_scheduler is not None:
+        lr_scheduler.step()
 
 
 # performs one validation iteration and outputs the challenge score

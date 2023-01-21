@@ -1,5 +1,5 @@
 import torch
-from warmup_lr import Warmup_LR
+from warmup_lr import GradualWarmupScheduler
 from models.SEResNet import ResNet
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -14,7 +14,4 @@ weight_decay = 1e-5
 loss = torch.nn.BCEWithLogitsLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
 cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, total_epochs-warmup_epochs)
-lr_scheduler = Warmup_LR(optimizer=optimizer,
-                        warmup_iteration=warmup_epochs,
-                        target_lr=lr,
-                        after_scheduler=cosine_scheduler)
+lr_scheduler =  GradualWarmupScheduler(optimizer, warmup_epochs, cosine_scheduler, value_flag=False)
