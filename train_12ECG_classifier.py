@@ -3,15 +3,14 @@
 import torch
 from torch.utils.data import DataLoader
 import numpy as np
+import pandas as pd
 import sklearn.model_selection
 import os
 from tqdm import tqdm
-import importlib
 from dataset import ECGDataset
 from evaluate_12ECG_score import *
 from driver import *
 from transform_utils import *
-import shutil
 
 def train_12ECG_classifier(input_directory, output_directory, config_file):
 
@@ -49,7 +48,17 @@ def train_12ECG_classifier(input_directory, output_directory, config_file):
     config = __import__(config_file)
     model = config.model
     total_epochs = config.total_epochs
+
+    #### Weighted Loss ####
     loss = config.loss
+    dx_mapping_df = pd.read_csv('dx_mapping_scored.csv')
+    pos = torch.tensor(dx_mapping_df['Total'])
+    print(pos)
+    pos_weight = (len(filenames)-pos)/pos
+    pos_weight = pos_weight.cuda()
+    print(pos_weight)
+    loss.pos_weight = pos_weight
+
     max_length = config.max_length
     optimizer = config.optimizer
     lr_scheduler = config.lr_scheduler
@@ -73,17 +82,6 @@ def train_12ECG_classifier(input_directory, output_directory, config_file):
         train_loader = DataLoader(dataset=train_set, batch_size=24, shuffle=True)
         val_loader = DataLoader(dataset=val_set, batch_size=1, shuffle=False)
         
-        pos = torch.zeros((27,))
-        #figure out the training weight loss
-        for (x, demographics), y in train_loader:
-            pos += y.sum(dim=0)
-        print(pos)
-        pos_weight = (len(train_indices)-pos)/pos
-        pos_weight = pos_weight.cuda()
-        print(pos_weight)
-        loss.pos_weight=pos_weight
-        
-        #labels for validation
         # training + validation loop
         print(f'Training on fold {i+1}')
         for epoch in range(1, total_epochs+1):
