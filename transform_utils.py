@@ -65,7 +65,7 @@ class RandomCropping(object):
     def __init__(self, crop_size):
         self.crop_size = crop_size
     def __call__(self, ecg_signal):
-        if(self.crop_size < len(ecg_signal[0])):
+        if(len(ecg_signal[0]) > self.crop_size):
             start = np.random.randint(0, len(ecg_signal[0])-self.crop_size)
             ecg_signal = ecg_signal[:,start:start+self.crop_size]
         
@@ -79,5 +79,5 @@ class ZeroPadding(object):
 
     def __call__(self, ecg_signal):
         if(len(ecg_signal[0]) < self.min_length):
-            ecg_signal = np.pad(ecg_signal, (0, self.min_length-len(ecg_signal[0])))
+            ecg_signal = np.pad(ecg_signal, ((0,0), (0, self.min_length-len(ecg_signal[0]))))
         return ecg_signal

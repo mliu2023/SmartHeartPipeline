@@ -11,6 +11,8 @@ from dataset import ECGDataset
 from evaluate_12ECG_score import *
 from driver import *
 from transform_utils import *
+from models.SEResNet import ResNet
+from models.dummyNN import dummyNN
 
 def train_12ECG_classifier(input_directory, output_directory, config_file):
 
@@ -18,6 +20,7 @@ def train_12ECG_classifier(input_directory, output_directory, config_file):
     classes = [270492004, 164889003, 164890007, 426627000, 713427006, 713426002, 445118002, 39732003, 164909002, 
                251146004, 698252002, 10370003, 284470004, 427172004, 164947007, 111975006, 164917005, 47665007, 
                59118001, 427393009, 426177001, 426783006, 427084000, 63593006, 164934002, 59931005, 17338001]
+
     for i in range(len(classes)):
         classes[i] = str(classes[i])
 
@@ -30,19 +33,22 @@ def train_12ECG_classifier(input_directory, output_directory, config_file):
     for file in os.listdir(input_directory):
         filepath = os.path.join(input_directory, file)
         if not file.lower().startswith('.') and file.lower().endswith('mat') and os.path.isfile(filepath):
-            filenames.append(filepath)
-            val_filenames.append(file)
+            heafile = filepath.replace('mat', 'hea')
+            if np.sum(get_labels_from_header(heafile, classes)) != 0:
+                filenames.append(filepath)
+                val_filenames.append(file)
         if not file.lower().startswith('.') and file.lower().endswith('hea') and os.path.isfile(filepath):
-            labels.append(get_labels_from_header(filepath, classes))
-            label_filenames.append(filepath)
-            output_filenames.append(os.path.join(output_directory, file.replace('.hea', '.csv')))
-
+            if np.sum(get_labels_from_header(filepath, classes)) != 0:
+                labels.append(get_labels_from_header(filepath, classes))
+                label_filenames.append(filepath)
+                output_filenames.append(os.path.join(output_directory, file.replace('.hea', '.csv')))
+    print(len(filenames))
+    print(len(labels))
     filenames = np.array(filenames)
     val_filenames = np.array(val_filenames)
     labels = np.array(labels)
     label_filenames = np.array(label_filenames)
     output_filenames = np.array(output_filenames)
-
 
     # define model, training parameters, loss, optimizer, and learning rate scheduler
     config = __import__(config_file)
@@ -57,19 +63,20 @@ def train_12ECG_classifier(input_directory, output_directory, config_file):
     dx_mapping_df = pd.read_csv('dx_mapping_scored.csv')
     pos = torch.tensor(dx_mapping_df['Total'])
     print(pos)
-    pos_weight = (len(filenames)-pos)/pos
+    print(torch.sum(pos))
+    pos_weight = (torch.sum(pos)-pos)/pos
     pos_weight = pos_weight.cuda()
     print(pos_weight)
     loss.pos_weight = pos_weight
 
 
     # composing preprocessing methods
-    train_transforms = Compose([Resample(), Normalize(), NotchFilter(), RandomCropping(crop_size=config.window_size), ZeroPadding(min_length=min_length)])
+    train_transforms = Compose([Resample(), Normalize(), NotchFilter(), ZeroPadding(min_length=min_length), RandomCropping(crop_size=config.window_size)])
     val_transforms = Compose([Resample(), Normalize(), NotchFilter(), ZeroPadding(min_length=min_length)])
 
     model_list = []
     thresholds_list = []
-
+    print(filenames)
     # train model using 10-fold cross validation
     k_fold = sklearn.model_selection.KFold(n_splits=10, shuffle=True, random_state=0)
     for i, (train_indices, val_indices) in enumerate(k_fold.split(filenames, labels)):
@@ -78,14 +85,13 @@ def train_12ECG_classifier(input_directory, output_directory, config_file):
         val_set = ECGDataset(filenames=filenames[val_indices], labels=labels[val_indices], transforms=val_transforms)
         
         # creating the data loaders (generators)
-        train_loader = DataLoader(dataset=train_set, batch_size=24, shuffle=True)
+        train_loader = DataLoader(dataset=train_set, batch_size=8, shuffle=True)
         val_loader = DataLoader(dataset=val_set, batch_size=1, shuffle=False)
         
         # imports from config file
         model = config.model
         optimizer = config.optimizer
         lr_scheduler = config.lr_scheduler
-
         # training + validation loop
         print(f'Training on fold {i+1}')
         for epoch in range(1, total_epochs+1):
@@ -117,7 +123,7 @@ def train_12ECG_classifier(input_directory, output_directory, config_file):
         thresholds_list.append(model_threshold)
         print(model_threshold)
         model_list.append(model)
-
+        break
 
 # performs one training iteration
 def train(model, train_loader, loss, optimizer, lr_scheduler):
@@ -129,10 +135,10 @@ def train(model, train_loader, loss, optimizer, lr_scheduler):
             demographics = demographics.cuda()
             y = y.float().cuda()
 
-            y_pred = model(x, demographics)
-
-            train_loss = loss(y_pred, y)
             optimizer.zero_grad()
+            y_pred = model(x, demographics)
+            train_loss = loss(y_pred, y)
+
             train_loss.backward()
             optimizer.step()
 
@@ -172,8 +178,6 @@ def val(model, val_loader, classes, filenames, window_size, window_stride, outpu
 
             save_challenge_predictions(output_directory,filenames[batch_num],scores=scores,labels=y_label_pred,classes=classes)
 
-    #do we need a separate output_directory for each foldo hhh right maybe
-    #i made label directories for each of the folds but i think code might get confused if you have all the outputs in one folder 
 # gets the class labels from the given header file(s)
 def get_labels_from_header(header_file, classes):
     with open(header_file, 'r') as file:

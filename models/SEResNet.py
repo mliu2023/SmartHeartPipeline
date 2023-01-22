@@ -115,7 +115,7 @@ class ResNet(nn.Module):
         self.conv1 = nn.Conv1d(in_channel, 64, kernel_size=15, stride=2, padding=7,
                                bias=False)
         self.bn1 = nn.BatchNorm1d(64)
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.LeakyReLU(inplace=True)
         self.maxpool = nn.MaxPool1d(kernel_size=3, stride=2, padding=1)
         self.layer1 = self._make_layer(block, 64, layers[0])
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
@@ -124,7 +124,6 @@ class ResNet(nn.Module):
         self.avgpool = nn.AdaptiveAvgPool1d(1)
         self.fc1 = nn.Linear(num_additional_features, num_additional_features)
         self.fc = nn.Linear(512 * block.expansion + num_additional_features, out_channel)
-        #self.sig = nn.Sigmoid()
 
         for m in self.modules():
             if isinstance(m, nn.Conv1d):
@@ -175,16 +174,13 @@ class ResNet(nn.Module):
         x = self.bn1(x)
         x = self.relu(x)
         x = self.maxpool(x)
-
         x = self.layer1(x)
         x = self.layer2(x)
         x = self.layer3(x)
         x = self.layer4(x)
-
         x = self.avgpool(x)
         x = x.view(x.size(0), -1)
         ag = self.fc1(demographics)
         x = torch.cat((x, ag), dim=1)
         x = self.fc(x)
-
         return x
