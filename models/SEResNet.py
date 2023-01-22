@@ -115,7 +115,7 @@ class ResNet(nn.Module):
         self.conv1 = nn.Conv1d(in_channel, 64, kernel_size=15, stride=2, padding=7,
                                bias=False)
         self.bn1 = nn.BatchNorm1d(64)
-        self.relu = nn.LeakyReLU(inplace=True)
+        self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool1d(kernel_size=3, stride=2, padding=1)
         self.layer1 = self._make_layer(block, 64, layers[0])
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)

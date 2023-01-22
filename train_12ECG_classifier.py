@@ -11,8 +11,6 @@ from dataset import ECGDataset
 from evaluate_12ECG_score import *
 from driver import *
 from transform_utils import *
-from models.SEResNet import ResNet
-from models.dummyNN import dummyNN
 
 def train_12ECG_classifier(input_directory, output_directory, config_file):
 
@@ -120,6 +118,8 @@ def train_12ECG_classifier(input_directory, output_directory, config_file):
                     best_class_threshold = class_threshold
                     best_class_score = class_score
             model_threshold[i] = best_class_threshold
+        
+        # saving model and threshold
         thresholds_list.append(model_threshold)
         print(model_threshold)
         model_list.append(model)
@@ -237,7 +237,7 @@ def evaluate_score(label_filenames, output_filenames, thresholds = None, verbose
     return classes, auroc, auprc, auroc_classes, auprc_classes, accuracy, f_measure, f_measure_classes, f_beta_measure, g_beta_measure, challenge_metric
 
 def run(label_filenames, output_filenames, challenge_score_file):
-    classes, auroc, auprc, auroc_classes, auprc_classes, accuracy, f_measure, f_measure_classes, f_beta_measure, g_beta_measure, challenge_metric = evaluate_score(label_filenames, output_filenames)
+    classes, auroc, auprc, auroc_classes, auprc_classes, accuracy, f_measure, f_measure_classes, f_beta_measure, g_beta_measure, challenge_metric = evaluate_score(label_filenames, output_filenames, verbose=False)
     output_string = 'AUROC,AUPRC,Accuracy,F-measure,Fbeta-measure,Gbeta-measure,Challenge metric\n{:.3f},{:.3f},{:.3f},{:.3f},{:.3f},{:.3f},{:.3f}'.format(auroc, auprc, accuracy, f_measure, f_beta_measure, g_beta_measure, challenge_metric)
     with open(challenge_score_file, 'w') as f:
         f.write(output_string)
