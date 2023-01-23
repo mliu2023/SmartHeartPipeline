@@ -107,7 +107,7 @@ def train_12ECG_classifier(input_directory, output_directory, config_file):
                 best_score = score
 
         # class threshold training
-        model_threshold = np.zeros(len(classes))
+        model_thresholds = np.zeros(len(classes))
         for i in range(len(classes)):
             best_class_score, best_class_threshold = 0, 0.5
             for class_threshold in np.linspace(0.1, 0.9, 9):
@@ -117,12 +117,13 @@ def train_12ECG_classifier(input_directory, output_directory, config_file):
                 if(class_score > best_class_score):
                     best_class_threshold = class_threshold
                     best_class_score = class_score
-            model_threshold[i] = best_class_threshold
+            model_thresholds[i] = best_class_threshold
         
         # saving model and threshold
-        thresholds_list.append(model_threshold)
-        print(model_threshold)
+        thresholds_list.append(model_thresholds)
+        print(model_thresholds)
         model_list.append(model)
+        run(label_filenames[val_indices], output_filenames[val_indices], 'scores.csv', verbose=True, thresholds=model_thresholds)
         break
 
 # performs one training iteration
@@ -236,8 +237,8 @@ def evaluate_score(label_filenames, output_filenames, thresholds = None, verbose
     # Return the results.
     return classes, auroc, auprc, auroc_classes, auprc_classes, accuracy, f_measure, f_measure_classes, f_beta_measure, g_beta_measure, challenge_metric
 
-def run(label_filenames, output_filenames, challenge_score_file):
-    classes, auroc, auprc, auroc_classes, auprc_classes, accuracy, f_measure, f_measure_classes, f_beta_measure, g_beta_measure, challenge_metric = evaluate_score(label_filenames, output_filenames, verbose=False)
+def run(label_filenames, output_filenames, challenge_score_file, verbose = False, thresholds = None):
+    classes, auroc, auprc, auroc_classes, auprc_classes, accuracy, f_measure, f_measure_classes, f_beta_measure, g_beta_measure, challenge_metric = evaluate_score(label_filenames, output_filenames, verbose=verbose, thresholds=thresholds)
     output_string = 'AUROC,AUPRC,Accuracy,F-measure,Fbeta-measure,Gbeta-measure,Challenge metric\n{:.3f},{:.3f},{:.3f},{:.3f},{:.3f},{:.3f},{:.3f}'.format(auroc, auprc, accuracy, f_measure, f_beta_measure, g_beta_measure, challenge_metric)
     with open(challenge_score_file, 'w') as f:
         f.write(output_string)
