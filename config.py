@@ -2,7 +2,7 @@ import torch
 from warmup_lr import GradualWarmupScheduler
 from models.SEResNet import ResNet
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-model = ResNet().to(device)
+model = ResNet(kernel_size=7).to(device)
 warmup_epochs = 10
 total_epochs = 100
 min_length = 5000

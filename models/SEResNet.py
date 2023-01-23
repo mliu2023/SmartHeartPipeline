@@ -20,9 +20,9 @@ class SELayer(nn.Module):
 
 
 
-def convkx1(in_planes, out_planes, stride=1):
+def convkx1(in_planes, out_planes, kernel_size, stride=1):
     """kx1 convolution with padding"""
-    return nn.Conv1d(in_planes, out_planes, kernel_size=7, stride=stride,
+    return nn.Conv1d(in_planes, out_planes, kernel_size=kernel_size, stride=stride,
                      padding=3, bias=False)
 
 
@@ -34,12 +34,12 @@ def conv1x1(in_planes, out_planes, stride=1):
 class BasicBlock(nn.Module):
     expansion = 1
 
-    def __init__(self, inplanes, planes, stride=1, downsample=None):
+    def __init__(self, inplanes, planes, kernel_size, stride=1, downsample=None):
         super(BasicBlock, self).__init__()
-        self.conv1 = convkx1(inplanes, planes, stride)
+        self.conv1 = convkx1(inplanes, planes, kernel_size, stride)
         self.bn1 = nn.BatchNorm1d(planes)
         self.relu = nn.ReLU(inplace=True)
-        self.conv2 = convkx1(planes, planes)
+        self.conv2 = convkx1(planes, planes, kernel_size)
         self.bn2 = nn.BatchNorm1d(planes)
         self.se = SELayer(planes)
         self.downsample = downsample
@@ -65,51 +65,9 @@ class BasicBlock(nn.Module):
 
         return out
 
-
-class Bottleneck(nn.Module):
-    expansion = 4
-
-    def __init__(self, inplanes, planes, stride=1, downsample=None):
-        super(Bottleneck, self).__init__()
-        self.conv1 = conv1x1(inplanes, planes)
-        self.bn1 = nn.BatchNorm1d(planes)
-        self.conv2 = convkx1(planes, planes, stride)
-        self.bn2 = nn.BatchNorm1d(planes)
-        self.conv3 = conv1x1(planes, planes * self.expansion)
-        self.bn3 = nn.BatchNorm1d(planes * self.expansion)
-        self.se = SELayer(self.expansion * planes)
-        self.relu = nn.ReLU(inplace=True)
-        self.downsample = downsample
-        self.stride = stride
-        self.dropout = nn.Dropout(.2)
-
-    def forward(self, x):
-        identity = x
-
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu(out)
-
-        out = self.conv2(out)
-        out = self.bn2(out)
-        out = self.relu(out)
-        out = self.dropout(out)
-
-        out = self.conv3(out)
-        out = self.bn3(out)
-        out = self.se(out)
-        if self.downsample is not None:
-            identity = self.downsample(x)
-
-        out += identity
-        out = self.relu(out)
-
-        return out
-
-
 class ResNet(nn.Module):
 
-    def __init__(self, block=BasicBlock, layers=[2, 2, 2, 2], in_channel=12, out_channel=27, num_additional_features=3, zero_init_residual=False):
+    def __init__(self, block=BasicBlock, layers=[2, 2, 2, 2], in_channel=12, out_channel=27, num_additional_features=3, kernel_size=7, zero_init_residual=False):
         super(ResNet, self).__init__()
         self.inplanes = 64
         self.conv1 = nn.Conv1d(in_channel, 64, kernel_size=15, stride=2, padding=7,
@@ -117,10 +75,10 @@ class ResNet(nn.Module):
         self.bn1 = nn.BatchNorm1d(64)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool1d(kernel_size=3, stride=2, padding=1)
-        self.layer1 = self._make_layer(block, 64, layers[0])
-        self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
-        self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
-        self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
+        self.layer1 = self._make_layer(block, 64, layers[0], kernel_size)
+        self.layer2 = self._make_layer(block, 128, layers[1], kernel_size, stride=2)
+        self.layer3 = self._make_layer(block, 256, layers[2], kernel_size, stride=2)
+        self.layer4 = self._make_layer(block, 512, layers[3], kernel_size, stride=2)
         self.avgpool = nn.AdaptiveAvgPool1d(1)
         self.fc1 = nn.Linear(num_additional_features, num_additional_features)
         self.fc = nn.Linear(512 * block.expansion + num_additional_features, out_channel)
@@ -137,9 +95,7 @@ class ResNet(nn.Module):
         # This improves the model by 0.2~0.3% according to https://arxiv.org/abs/1706.02677
         if zero_init_residual:
             for m in self.modules():
-                if isinstance(m, Bottleneck):
-                    nn.init.constant_(m.bn3.weight, 0)
-                elif isinstance(m, BasicBlock):
+                if isinstance(m, BasicBlock):
                     nn.init.constant_(m.bn2.weight, 0)
 
         """
@@ -151,7 +107,7 @@ class ResNet(nn.Module):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
         """
-    def _make_layer(self, block, planes, blocks, stride=1):
+    def _make_layer(self, block, planes, blocks, kernel_size, stride=1):
         downsample = None
         if stride != 1 or self.inplanes != planes * block.expansion:
             downsample = nn.Sequential(
@@ -160,10 +116,10 @@ class ResNet(nn.Module):
             )
 
         layers = []
-        layers.append(block(self.inplanes, planes, stride, downsample))
+        layers.append(block(self.inplanes, planes, kernel_size, stride, downsample))
         self.inplanes = planes * block.expansion
         for _ in range(1, blocks):
-            layers.append(block(self.inplanes, planes))
+            layers.append(block(self.inplanes, planes, kernel_size))
 
         return nn.Sequential(*layers)
 
