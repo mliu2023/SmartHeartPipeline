@@ -18,3 +18,19 @@
 # 18 SWT decomposition level 3 entropy
 # 19 Median p wave approximate entropy
 # 20 R peak approximate entropy
+import numpy as np
+from scipy.signal import find_peaks
+
+def extract_features(ecg_signal):
+    # assuming 500hz sample freq
+    sample_frequency = 500
+    # 1. HRmin
+    r_peaks, _ = find_peaks(ecg_signal)
+    rr_intervals = np.diff(r_peaks)
+    hr_min = np.min(sample_frequency/rr_intervals)
+    
+    # 3. HRmax
+    hr_max = np.max(sample_frequency/rr_intervals)
+    
+    # 8. Heart rate μ
+    hr_mean = np.mean(sample_frequency/rr_intervals)
