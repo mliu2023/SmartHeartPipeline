@@ -11,6 +11,8 @@ if __name__ == '__main__':
 
     if not os.path.isdir(output_directory):
         os.mkdir(output_directory)
+    if not os.path.isdir('model_weights'):
+        os.mkdir('model_weights')
 
     print('Running training code...')
 

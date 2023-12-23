@@ -6,7 +6,7 @@ import torch.nn.functional as F
 
 class PositionalEncoding(nn.Module):
     "Implement the PE function."
-    def __init__(self, d_model, dropout, max_len=5000):   
+    def __init__(self, d_model, dropout, max_len=7500):   
         super(PositionalEncoding, self).__init__()
         self.dropout = nn.Dropout(p=dropout)
         
@@ -94,10 +94,9 @@ class CTN(nn.Module):
                 nn.init.constant_(m.bias, 0)
         
         #self.apply(_weights_init)
-            
     def forward(self, x, wide_feats):
         z = self.encoder(x)          # encoded sequence is batch_sz x nb_ch x seq_len
         out = self.transformer(z)    # transformer output is batch_sz x d_model
         out = self.dropout(F.relu(self.fc1(out)))
         out = self.fc2(torch.cat([wide_feats, out], dim=1))
-        return out                
+        return out

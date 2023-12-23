@@ -4,11 +4,7 @@ import numpy as np, os, sys
 import joblib
 from get_12ECG_features import get_12ECG_features
 
-def run_12ECG_classifier(data,header_data,loaded_model, config_file):
-
-    config = __import__(config_file)
-    window_size = config.window_size
-    stride = config.stride
+def run_12ECG_classifier(data,header_data, loaded_model):
     # Use your classifier here to obtain a label and score for each class.
     model = loaded_model['model']
     imputer = loaded_model['imputer']

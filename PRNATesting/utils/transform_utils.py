@@ -1,5 +1,7 @@
 import numpy as np
 from scipy.signal import resample, iirnotch, lfilter
+from biosppy.signals.tools import filter_signal
+from biosppy.signals.ecg import ecg
 
 # composes a list of transforms together
 # all transforms should take in an ndarray and return an ndarray
@@ -81,3 +83,29 @@ class ZeroPadding(object):
         if(len(ecg_signal[0]) < self.min_length):
             ecg_signal = np.pad(ecg_signal, ((0,0), (0, self.min_length-len(ecg_signal[0]))))
         return ecg_signal
+
+# apply bandpass filter to signal
+class BandFilter(object):
+    def __init__(self, filter_bandwith):
+        self.filter_bandwith = filter_bandwith
+    
+    def __call__(self, ecg_signal, fs=500):
+        order = int(0.3 * self.fs)
+
+        # Filter signal
+        ecg_signal, _, _ = filter_signal(signal=ecg_signal,
+                                     ftype='FIR',
+                                     band='bandpass',
+                                     order=order,
+                                     frequency=self.filter_bandwidth,
+                                     sampling_rate=fs)
+
+        return ecg_signal
+
+# applyg biosppy flitering
+class BiosppyFilter(object):
+    def __init__(self, new_freq = 500):
+        self.new_freq = new_freq
+    def __call__(self, ecg_signal):
+        ts, filtered, rpeaks, templates_ts, templates, heart_rate_ts, heart_rate = ecg(signal = ecg_signal, sampling_rate = self.new_freq)
+        return np.array(filtered)

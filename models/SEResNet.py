@@ -23,7 +23,7 @@ class SELayer(nn.Module):
 def convkx1(in_planes, out_planes, kernel_size, stride=1):
     """kx1 convolution with padding"""
     return nn.Conv1d(in_planes, out_planes, kernel_size=kernel_size, stride=stride,
-                     padding=3, bias=False)
+                     padding=(kernel_size-1)//2, bias=False)
 
 
 def conv1x1(in_planes, out_planes, stride=1):
@@ -38,7 +38,8 @@ class BasicBlock(nn.Module):
         super(BasicBlock, self).__init__()
         self.conv1 = convkx1(inplanes, planes, kernel_size, stride)
         self.bn1 = nn.BatchNorm1d(planes)
-        self.relu = nn.ReLU(inplace=True)
+        # self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.SiLU(inplace=True)
         self.conv2 = convkx1(planes, planes, kernel_size)
         self.bn2 = nn.BatchNorm1d(planes)
         self.se = SELayer(planes)
@@ -65,27 +66,71 @@ class BasicBlock(nn.Module):
 
         return out
 
-class ResNet(nn.Module):
+class Bottleneck(nn.Module):
+    expansion = 4
 
-    def __init__(self, block=BasicBlock, layers=[2, 2, 2, 2], in_channel=12, out_channel=27, num_additional_features=3, kernel_size=7, zero_init_residual=False):
-        super(ResNet, self).__init__()
+    def __init__(self, inplanes, planes, kernel_size, stride=1, downsample=None):
+        super(Bottleneck, self).__init__()
+        self.conv1 = conv1x1(inplanes, planes)
+        self.bn1 = nn.BatchNorm1d(planes)
+        self.conv2 = convkx1(planes, planes, kernel_size, stride)
+        self.bn2 = nn.BatchNorm1d(planes)
+        self.conv3 = conv1x1(planes, planes * self.expansion)
+        self.bn3 = nn.BatchNorm1d(planes * self.expansion)
+        self.se = SELayer(self.expansion * planes)
+        # self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.SiLU(inplace=True)
+        self.downsample = downsample
+        self.stride = stride
+        self.dropout = nn.Dropout(.2)
+
+    def forward(self, x):
+        identity = x
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+        out = self.relu(out)
+        out = self.dropout(out)
+
+        out = self.conv3(out)
+        out = self.bn3(out)
+        out = self.se(out)
+        if self.downsample is not None:
+            identity = self.downsample(x)
+
+        out += identity
+        out = self.relu(out)
+
+        return out
+
+class SEResNet(nn.Module):
+
+    def __init__(self, block=BasicBlock, layers=[2, 2, 2, 2], in_channel=12, out_channel=27, num_additional_features=6, kernel_size=7, zero_init_residual=True):
+        super(SEResNet, self).__init__()
         self.inplanes = 64
         self.conv1 = nn.Conv1d(in_channel, 64, kernel_size=15, stride=2, padding=7,
                                bias=False)
         self.bn1 = nn.BatchNorm1d(64)
-        self.relu = nn.ReLU(inplace=True)
+        # self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.SiLU(inplace=True)
         self.maxpool = nn.MaxPool1d(kernel_size=3, stride=2, padding=1)
         self.layer1 = self._make_layer(block, 64, layers[0], kernel_size)
         self.layer2 = self._make_layer(block, 128, layers[1], kernel_size, stride=2)
         self.layer3 = self._make_layer(block, 256, layers[2], kernel_size, stride=2)
         self.layer4 = self._make_layer(block, 512, layers[3], kernel_size, stride=2)
         self.avgpool = nn.AdaptiveAvgPool1d(1)
-        self.fc1 = nn.Linear(num_additional_features, num_additional_features)
+        if num_additional_features != 0:
+            self.fc_ag = nn.Linear(num_additional_features, num_additional_features)
         self.fc = nn.Linear(512 * block.expansion + num_additional_features, out_channel)
 
         for m in self.modules():
             if isinstance(m, nn.Conv1d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                # nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                nn.init.kaiming_normal_(m.weight, mode='fan_out')
             elif isinstance(m, nn.BatchNorm1d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
@@ -125,7 +170,7 @@ class ResNet(nn.Module):
 
 
 
-    def forward(self, x, demographics):
+    def forward(self, x, additional_features=None):
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
@@ -136,7 +181,23 @@ class ResNet(nn.Module):
         x = self.layer4(x)
         x = self.avgpool(x)
         x = x.view(x.size(0), -1)
-        ag = self.fc1(demographics)
-        x = torch.cat((x, ag), dim=1)
+        if(additional_features is not None):
+            ag = self.fc_ag(additional_features)
+            x = torch.cat((x, ag), dim=1)
         x = self.fc(x)
+        return x
+
+    def projector(self, x, additional_features):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+        x = self.avgpool(x)
+        x = x.view(x.size(0), -1)
+        ag = self.fc_ag(additional_features)
+        x = torch.cat((x, ag), dim=1)
         return x

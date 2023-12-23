@@ -138,7 +138,7 @@ def load_table(table_file):
     return rows, cols, values
 
 # Load weights.
-def load_weights(weight_file, equivalent_classes):
+def load_weights(weight_file, equivalent_classes=None):
     # Load the weight matrix.
     rows, cols, values = load_table(weight_file)
     assert(rows == cols)
@@ -161,7 +161,7 @@ def load_weights(weight_file, equivalent_classes):
     return classes, weights
 
 # Load labels from header/label files.
-def load_labels(label_files, classes, equivalent_classes):
+def load_labels(label_files, classes, equivalent_classes=None):
     # The labels should have the following form:
     #
     # Dx: label_1, label_2, label_3
@@ -191,7 +191,7 @@ def load_labels(label_files, classes, equivalent_classes):
     return labels
 
 # Load outputs from output files.
-def load_outputs(output_files, classes, equivalent_classes):
+def load_outputs(output_files, classes, equivalent_classes=None):
     # The outputs should have the following form:
     #
     # diagnosis_1, diagnosis_2, diagnosis_3

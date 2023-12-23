@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 
-import torch
 from torch.utils.data import DataLoader
 import numpy as np
-import os, sys
+import pandas as pd
+import os, json
 import matplotlib.pyplot as plt
+from sklearn.preprocessing import MinMaxScaler
 from dataset import ECGDataset
-from transform_utils import *
+from utils.transform_utils import *
 
 def ECG_visualization(input_directory, output_directory):
 
@@ -18,44 +19,58 @@ def ECG_visualization(input_directory, output_directory):
     for i in range(len(classes)):
         classes[i] = str(classes[i])
 
-    # retrieving filenames and labels from the data folder
-    filenames = [] # list of filepaths 
+    #### retrieving filenames and labels from the data folder ####
+    # .mat files have the ecg data, while .hea files are the header files and .csv files are for outputs
+    filepaths = [] # list of filepaths \data\A0001.mat
+    val_filenames = [] # list of filenames \A0001.mat
     labels = [] # list of one-hot encoded tensors, each of length 27
-    label_filenames = [] # list of filepaths to header files
+    label_filepaths = [] # list of filepaths to header files \data\A0001.hea
     for file in os.listdir(input_directory):
         filepath = os.path.join(input_directory, file)
         if not file.lower().startswith('.') and file.lower().endswith('mat') and os.path.isfile(filepath):
             heafile = filepath.replace('mat', 'hea')
             if np.sum(get_labels_from_header(heafile, classes)) != 0:
-                filenames.append(filepath)
+                filepaths.append(filepath)
+                val_filenames.append(file)
         if not file.lower().startswith('.') and file.lower().endswith('hea') and os.path.isfile(filepath):
             if np.sum(get_labels_from_header(filepath, classes)) != 0:
                 labels.append(get_labels_from_header(filepath, classes))
-                label_filenames.append(filepath)
-    filenames = np.array(filenames)
+                label_filepaths.append(filepath)
+    print(f'Total number of files: {len(filepaths)}')
+    filepaths = np.array(filepaths)
+    val_filenames = np.array(val_filenames)
     labels = np.array(labels)
-    label_filenames = np.array(label_filenames)
+    label_filepaths = np.array(label_filepaths)
+
+    features = pd.read_csv('features.csv').to_numpy()[:, 1:]
+    scaler = MinMaxScaler()
+    features = scaler.fit_transform(features)
+    with open('rpeaks.json', 'r') as f:
+        rpeaks = json.load(f)
 
     # composing preprocessing methods
-    min_length, window_size = 1500, 1500
-    transforms = Compose([Resample(), Normalize(), NotchFilter(), ZeroPadding(min_length=min_length), RandomCropping(crop_size=window_size)])
+    min_length, window_size = 7500, 7500
+    wavelet, level = 'db3', 3
+    transforms = Compose([Resample(), Normalize(), NotchFilter(), DWT(wavelet=wavelet, level=level), ZeroPadding(min_length=min_length), RandomCropping(crop_size=window_size)])
 
     # taking in indices to visualize
     indices = [int(index) for index in input('Select filename indices to visualize (leave just a space between indices): ').split()]
-    filename_list = np.array(filenames[indices])
-    label_list = np.array(labels[indices])
-    dataset = ECGDataset(filenames=filename_list, labels=label_list, transforms=transforms)
+    filepaths = filepaths[indices]
+    labels = labels[indices]
+    features = features[indices]
+    rpeaks = [rpeaks[i] for i in indices]
+    dataset = ECGDataset(filepaths=filepaths, labels=labels, features=features, rpeaks=rpeaks, transforms=transforms)
     loader = DataLoader(dataset=dataset, batch_size=1, shuffle=False)
 
-    for batch_num, ((x, demographics), y), in enumerate(loader):
+    for batch_num, ((x, demographics), y, _), in enumerate(loader):
         x = x.squeeze()
         demographics = demographics.squeeze()
         y = y.squeeze()
         plt.figure(figsize=(20, 15))
         for i in range(0, 12):
             plt.subplot(3, 4, i+1)
-            plt.plot(x[i])
-        plt.savefig(filename_list[batch_num].replace(input_directory, output_directory).rstrip('.mat') + '_visualization.png')
+            plt.plot(x[i][0:1000])
+        plt.savefig(filepaths[batch_num].replace(input_directory, output_directory).rstrip('.mat') + f'_{wavelet}_level{level}_visualization.png')
 
 
 

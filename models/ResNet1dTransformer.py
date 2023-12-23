@@ -16,6 +16,8 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 
+from calculate_downsample import config2_output_shape
+
 class MyDataset(Dataset):
     def __init__(self, data, label):
         self.data = data
@@ -192,7 +194,7 @@ class ResNet1D(nn.Module):
         
     """
 
-    def __init__(self, in_channels, base_filters, kernel_size, stride, groups, n_block, n_classes, downsample_gap=2, increasefilter_gap=4, use_bn=True, use_do=True, verbose=False):
+    def __init__(self, in_channels, base_filters, kernel_size, stride, groups, n_block, n_classes, downsample_gap=2, increasefilter_gap=4, num_additional_features=3, use_bn=True, use_do=True, verbose=False):
         super(ResNet1D, self).__init__()
         
         self.verbose = verbose
@@ -250,15 +252,25 @@ class ResNet1D(nn.Module):
             self.basicblock_list.append(tmp_block)
 
         # final prediction
-        encoder_layer = nn.TransformerEncoderLayer(d_model = 128, nhead=8, batch_first = True, activation='gelu')
-        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers = 4)
+        #class embeddings
+        d = 256
+        self.class_embeddings = torch.hstack([nn.Parameter((torch.rand(d, 1).cuda())) for i in range(n_classes)])
+        sequence_length = 278+27
+        # sequence_length = config2_output_shape(self.basicblock_list, 7500) + 1 + n_classes
+        result = torch.ones(sequence_length, d)
+        for i in range(sequence_length):
+            for j in range(d):
+                result[i][j] = np.sin(i / (10000 ** (j/d))) if j % 2 == 0 else np.cos(i/(10000 ** ((j-1)/d)))
+        self.positional_embeddings = nn.Parameter(torch.tensor(result))
+        encoder_layer = nn.TransformerEncoderLayer(d_model = d, nhead=8, batch_first = False, activation='gelu')
+        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers = 6)
         self.final_bn = nn.BatchNorm1d(out_channels)
         self.final_relu = nn.ReLU(inplace=True)
+        self.demo_embed  = nn.Parameter(torch.rand((27, num_additional_features)))
         # self.do = nn.Dropout(p=0.5)
-        self.dense = nn.Linear(out_channels, n_classes)
+        self.dense = nn.Linear(d+num_additional_features, 1)
         # self.softmax = nn.Softmax(dim=1)
-        
-    def forward(self, x):
+    def forward(self, x, demographics):
         
         out = x
         # first conv
@@ -279,35 +291,33 @@ class ResNet1D(nn.Module):
             out = net(out)
             if self.verbose:
                 print(out.shape)
-
+        #print(out.shape)
         # final prediction
         #print(out.shape)
-        out = torch.permute(out, (0,2,1))
+        #batch, 3, 1
+        #out[i] = 128, 11
+        #embeddings = 131, 27
+        out = torch.stack([torch.hstack([self.class_embeddings, out[i]]) for i in range(len(out))])
+        pos_embed = self.positional_embeddings.repeat(len(out), 1, 1)
+        pos_embed = pos_embed.permute((0,2,1))
+        out += pos_embed
+        out = out.permute((2, 0, 1))
         out = self.encoder(out)
-        #i is the feature j is the sequence pos
-        pe=torch.zeros(11,128).cuda()
-        for i in range(0, 64):
-            for j in range(0, 11):
-                pe[j][2*i] = torch.sin(torch.tensor(j / (10000 ** (2*i/64))))
-                pe[j][2*i+1] = torch.cos(torch.tensor(j / (10000 ** (2*i/64))))
-        #print(x)
-        pe.unsqueeze(dim = 0)
-        out += pe
-        out = torch.permute(out, (0,2,1))
-        #print(out.shape)
-        if self.use_bn:
-            out = self.final_bn(out)
-        out = self.final_relu(out)
-        out = out.mean(-1)
-        #print(out.shape)
-        if self.verbose:
-            print('final pooling', out.shape)
-        # out = self.do(out)
-        out = self.dense(out)
-        if self.verbose:
-            print('dense', out.shape)
-        # out = self.softmax(out)
-        if self.verbose:
-            print('softmax', out.shape)
+        out = out.permute((1, 0, 2))
+
+        out = out[:, :27, :]
         
+        #print(demographics.shape)
+
+        demographics = torch.stack([torch.vstack( [(torch.mul(self.demo_embed[i], demographics[j])) for i in range(27) ])  for j in range(demographics.shape[0])]) 
+        #print(demographics.shape)
+        out = torch.cat((out, demographics), dim = 2)
+        # batch, 27, time (11)
+        out = self.dense(out)
+
+        #batch, 27, 1
+        out = torch.squeeze(out, dim=out.ndim-1)
+        #i is the feature j is the sequence pos
+        #print(x)
+        #print(out.shape)
         return out   
